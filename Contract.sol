@@ -3,7 +3,6 @@
 pragma solidity ^0.8.7;
 pragma experimental ABIEncoderV2;
 
-import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -11,9 +10,8 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@trustus/src/Trustus.sol";
-import {console} from "../test/utils/console.sol";
 
-contract PaymentSplit is ChainlinkClient, Ownable ,Trustus{
+contract PaymentSplit is Ownable ,Trustus{
 
     // using Chainlink for Chainlink.Request;
     address public NFTAddress;
@@ -49,19 +47,18 @@ contract PaymentSplit is ChainlinkClient, Ownable ,Trustus{
     }
 
     modifier onlyPayee(address _requestAddress,bytes32[] memory proof) {
-        require(IERC20(NFTAddress).balanceOf(_requestAddress) > 0 || proof.verify(merkleRoot, keccak256(abi.encodePacked(_requestAddress))), "Not Allowed Payee.");
-        // require(userAddr[_requestAddress], "Not Allowed Payee.");
+        //require(IERC20(NFTAddress).balanceOf(_requestAddress) > 0 || proof.verify(merkleRoot, keccak256(abi.encodePacked(_requestAddress))), "Not Allowed Payee.");
+        require(userAddr[_requestAddress], "Not Allowed Payee.");
         _;
     }
     
-    function withdraw(bytes32 request, TrustusPacket calldata packet,bytes32[] memory proof) public onlyPayee(msg.sender,proof){
-        _setIsTrusted(msg.sender,true);
+    function withdraw(bytes32 request, TrustusPacket calldata packet)public{//,bytes32[] memory proof) public onlyPayee(msg.sender,proof){
         require(_verifyPacket(request, packet));
         _release(packet.payload);
     }
 
     function _release(uint256[5] memory balanceForAddress) internal{
-      require(lastReleaseTime[msg.sender] > 86400, "Release is allowed only once per day.");
+      require(lastReleaseTime[msg.sender] < 86400, "Release is allowed only once per day.");
         if(balanceForAddress[0] > 0){
             require(address(this).balance > balanceForAddress[0], "Insufficient Balance on Contract.");
             require(allowedAmount[0] > balanceForAddress[0], "Not Allowed Amount");
@@ -86,10 +83,6 @@ contract PaymentSplit is ChainlinkClient, Ownable ,Trustus{
         }
     }
 
-    function updateConstruct(address _oracle) public onlyOwner {
-        setChainlinkOracle(_oracle);
-    }
-
     function setMaxAllowAmount(uint256[] memory newAmount) public onlyOwner {
         allowedAmount = newAmount;
     }
@@ -105,7 +98,9 @@ contract PaymentSplit is ChainlinkClient, Ownable ,Trustus{
     //         userAddr[users[i]] = true;
     //     }
     // }
-
+    function setTrustedPublicKey(address pubkey) public onlyOwner {
+        _setIsTrusted(pubkey,true);
+    }
     function getTokenPrice() public view returns (uint256) {
         return tokenPrice;
     }
